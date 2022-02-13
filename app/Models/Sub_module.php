@@ -19,11 +19,11 @@ class Sub_module extends Model
 
     public function module()
     {
-        return $this->belongsTo('App\Models\Module', 'mod_id');
+        return $this->belongsTo(Module::class, 'mod_id');
     }
 
     public function permission()
     {
-        return $this->hasMany('App\Models\Permission', 'submod_id');
+        return $this->hasMany(Permission::class, 'submod_id');
     }
 }

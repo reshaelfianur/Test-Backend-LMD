@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class ModuleTableSeeder extends Seeder
 {
@@ -13,45 +14,21 @@ class ModuleTableSeeder extends Seeder
      */
     public function run()
     {
-        \DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-        \DB::table('modules')->truncate();
-        \DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        DB::table('modules')->truncate();
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
-        \DB::table('modules')->insert([
+        DB::table('modules')->insert([
             [
                 'mod_id'        => 1,
-                'mod_code'      => 'entity',
-                'mod_name'      => 'Entity',
+                'mod_code'      => 'user-management',
+                'mod_name'      => 'User Management',
                 'mod_status'    => 1,
             ],
             [
                 'mod_id'        => 2,
-                'mod_code'      => 'payroll-setting',
-                'mod_name'      => 'Payroll Setting',
-                'mod_status'    => 1,
-            ],
-            [
-                'mod_id'        => 3,
-                'mod_code'      => 'personnel',
-                'mod_name'      => 'Personnel',
-                'mod_status'    => 1,
-            ],
-            [
-                'mod_id'        => 4,
-                'mod_code'      => 'payroll',
-                'mod_name'      => 'Payroll',
-                'mod_status'    => 1,
-            ],
-            [
-                'mod_id'        => 5,
-                'mod_code'      => 'report',
-                'mod_name'      => 'Report',
-                'mod_status'    => 1,
-            ],
-            [
-                'mod_id'        => 6,
-                'mod_code'      => 'user-management',
-                'mod_name'      => 'User Management',
+                'mod_code'      => 'task-management',
+                'mod_name'      => 'Task Management',
                 'mod_status'    => 1,
             ],
         ]);

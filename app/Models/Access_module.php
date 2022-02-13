@@ -19,11 +19,11 @@ class Access_module extends Model
 
     public function module()
     {
-        return $this->belongsTo('App\Models\Module', 'mod_id');
+        return $this->belongsTo(Module::class, 'mod_id');
     }
 
     public function role()
     {
-        return $this->belongsTo('App\Models\Role', 'role_id');
+        return $this->belongsTo(Role::class, 'role_id');
     }
 }

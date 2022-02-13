@@ -1,72 +1,48 @@
 <?php
 
-namespace App\Http\Controllers\Api\Entity;
+namespace App\Http\Controllers\Api\UserManagement;
 
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\App;
 use App\Http\Controllers\Controller;
-use App\Models\Access_module;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Hash;
+
+use App\Models\Access_module;
 use App\Models\User as mUser;
 use App\Models\Role;
-use App\Models\Grade;
-
-use App\Mail\UserResetPassword;
-
-use App\Traits\DynamicConfig;
 
 class User extends Controller
 {
-    use DynamicConfig;
-
-    private $_compCode;
-    private $_compCodeSelect;
-
-    public function __construct()
-    {
-        $this->middleware(function ($request, $next) {
-            $this->_compCode        = $this->setConfigDatabaseConnection($request);
-            $this->_compCodeSelect  = $this->setConfigDatabaseConnectionSelect($request);
-
-            return $next($request);
-        });
-    }
-
     public function index(Request $req)
     {
-        $user = new mUser;
-        $user->setConnection($this->_compCode);
-
         $args = [];
 
-        if (!empty($req->input('_companySearch'))) {
-            $args += ['b.comp_id' => $req->input('_companySearch')];
+        if (!empty($req->user_id)) {
+            $args += ['users.user_id' => $req->user_id];
         }
 
-        if (!empty($req->input('user_type'))) {
-            $args += ['users.user_type' => $req->input('user_type')];
+        if (!empty($req->user_type)) {
+            $args += ['users.user_type' => $req->user_type];
         }
 
-        if (!empty($req->input('created_by'))) {
-            $args += ['users.created_by' => $req->input('created_by')];
+        if (!empty($req->created_by)) {
+            $args += ['users.created_by' => $req->created_by];
         }
 
-        $get = $user->fetch($args);
+        $get = mUser::fetch($args);
 
-        if (empty($req->input('_page'))) {
+        if (empty($req->_page)) {
             return response()->json([
-                'data'      => $get->makeVisible('password'),
-                'status'    => 'success'
+                'data'      => $get,
+                'status'    => true
             ], 200);
         }
 
-        $search     = $req->input('_search');
-        $limit      = $req->input('_pageSize');
-        $offset     = ($req->input('_page') - 1) * $limit;
-        $sort       = explode(':', $req->input('_sortby'));
+        $search     = $req->_search;
+        $limit      = $req->_pageSize;
+        $offset     = ($req->_page - 1) * $limit;
+        $sort       = explode(':', $req->_sortby);
         $column     = $sort[0];
         $get        = $sort[1] == 1 ? $get->sortBy($column) : $get->sortByDesc($column);
         $total      = $get->count();
@@ -74,9 +50,8 @@ class User extends Controller
 
         if (!empty($search)) {
             $get = $get->filter(function ($col, $val) use ($search) {
-                return (stristr($col->comp_name, $search) ||
-                    stristr($col->user_fullname, $search) ||
-                    stristr($col->user_email, $search) ||
+                return (stristr($col->user_full_name, $search) ||
+                    stristr($col->email, $search) ||
                     stristr($col->username, $search));
             });
         }
@@ -84,33 +59,25 @@ class User extends Controller
         return response()->json([
             'documentSize'  => $get->count(),
             'numberOfPages' => $numPage <= 1 ? 1 : floor($numPage) + 1,
-            'page'          => $req->input('_page'),
+            'page'          => $req->_page,
             'pageSize'      => $limit,
             'data'          => $get->slice($offset, $limit)->values()->all(),
-            'status'        => 'success',
+            'status'        => true,
         ], 200);
     }
 
     public function unique(Request $req)
     {
-        $user = new mUser;
-        $user->setConnection($this->_compCode);
-
-        if ($req->input('user_id') == 'undefined') {
-            $duplicate = $user->where('username', $req->input('username'))
-                ->when(!empty($req->input('user_is_ho')), function ($query) use ($req) {
-                    return $query->whereIn('comp_id', array_column(json_decode(base64_decode($req->input('companies_assigned'))), 'comp_id'));
-                })
-                ->get();
+        if ($req->user_id == 'undefined') {
+            $duplicate = mUser::where(function ($q) use ($req) {
+                $q->where('username', $req->username)
+                    ->orWhere('email', $req->email);
+            })->get();
         } else {
-            $duplicate = $user->where('username', $req->input('username'))
-                ->when(!empty($req->input('user_is_ho')), function ($query)  use ($req) {
-                    return $query->whereIn('comp_id', array_column(json_decode(base64_decode($req->input('companies_assigned_all'))), 'comp_id'))
-                        ->whereNotIn('user_id', json_decode(base64_decode($req->input('user_ids'))));
-                })
-                ->when(empty($req->input('user_is_ho')), function ($query)  use ($req) {
-                    return $query->where('user_id', '<>', $req->input('user_id'));
-                })
+            $duplicate = mUser::where(function ($q) use ($req) {
+                $q->where('username', $req->username)
+                    ->orWhere('email', $req->email);
+            })->where('user_id', '<>', $req->user_id)
                 ->get();
         }
 
@@ -121,18 +88,18 @@ class User extends Controller
 
             $response = [
                 'data'      => $duplicate,
-                'status'    => 'failed',
+                'status'    => false,
             ];
 
-            if ($duplicate->username == $req->input('username')) {
+            if ($duplicate->username == $req->username) {
                 $response['message'] = 'Username already exists.';
-            } elseif ($duplicate->user_email == $req->input('user_email')) {
+            } elseif ($duplicate->email == $req->email) {
                 $response['message'] = 'Email already exists.';
             }
         } else {
             $response = [
                 'data'      => true,
-                'status'    => 'success'
+                'status'    => true
             ];
         }
 
@@ -141,350 +108,111 @@ class User extends Controller
 
     public function store(Request $req)
     {
-        $userDBDefault = new mUser;
-        $userDBDefault->setConnection($this->_compCode);
+        $user = mUser::create([
+            'user_full_name'                => trim($req->user_full_name),
+            'email'                         => trim($req->email),
+            'username'                      => trim($req->username),
+            'user_active_date'              => $req->user_active_date,
+            'user_inactive_date'            => $req->user_inactive_date != 'null' ? $req->user_inactive_date : null,
+            'user_status'                   => $req->user_status,
+            'password'                      => Hash::make(trim($req->password)),
+            'created_by'                    => $req->created_by,
+        ]);
 
-        $companiesAssigned  = json_decode(base64_decode($req->input('companies_assigned')));
+        $role = Role::find($req->role_id);
 
-        $userData = [
-            'user_fullname'                 => trim($req->input('user_fullname')),
-            'user_email'                    => trim($req->input('user_email')),
-            'username'                      => trim($req->input('username')),
-            'grade_from_id'                 => $req->input('grade_from_id'),
-            'grade_to_id'                   => $req->input('grade_to_id'),
-            'loc_id'                        => $req->input('loc_id'),
-            'user_active_date'              => $req->input('user_active_date'),
-            'user_inactive_date'            => $req->input('user_inactive_date') != 'null' ? $req->input('user_inactive_date') : null,
-            'user_status'                   => $req->input('user_status'),
-            'password'                      => Hash::make(trim($req->input('password'))),
-            'user_need_change_password'     => 2,
-            'user_type'                     => $req->input('user_type'),
-            'created_by'                    => $req->input('created_by'),
-        ];
-
-        if (!empty($req->input('user_is_ho')) && $this->_compCodeSelect != env('DB_DATABASE')) {
-            $roleData = Role::find(3);
-
-            foreach ($companiesAssigned as $key => $value) {
-                $userData['comp_id'] = $value->comp_id;
-
-                $rowUserData    = $userDBDefault->create($userData);
-
-                $rowUserData->attachRole($roleData);
-
-                $compCode       = $value->comp_code;
-
-                if ($compCode != 'axiasolusi') {
-                    $config     = App::make('config');
-                    $connection = $config->get('database.connections')['mysql'];
-
-                    $connection['database'] = $compCode;
-
-                    $config->set('database.connections.' . $compCode, $connection);
-
-                    $user = new mUser;
-                    $user->setConnection($compCode);
-                    $user->insert(array_merge($userData, ['user_id' => $rowUserData->user_id]));
-
-                    $rowUserData2 = $user->find($rowUserData->user_id);
-
-                    $rowUserData2->attachRole($roleData);
-                }
-            }
-        } else {
-            $userData['comp_id'] = $req->input('comp_id');
-
-            $rowUserData = $userDBDefault->create($userData);
-
-            $role = new Role;
-            $role->setConnection($this->_compCode);
-
-            $roleData = $role->where('id', $req->input('role_id'))->first();
-
-            $rowUserData->attachRole($roleData);
-        }
+        $user->attachRole($role);
 
         return response()->json([
-            'data'      => $rowUserData,
-            'status'    => 'success',
+            'data'      => $user,
+            'status'    => true,
             'message'   => 'New record has been saved.'
         ], 200);
     }
 
     public function save(Request $req)
     {
-        $user = new mUser;
-        $user->setConnection($this->_compCode);
+        $password   = trim($req->password);
 
-        $updatedBy                  = $req->input('updated_by');
-        $username                   = trim($req->input('username'));
-        $usersAssigned              = json_decode(base64_decode($req->input('users_assigned')));
-        $companiesAssignedAdd       = json_decode(base64_decode($req->input('companies_assigned_add')));
-        $companiesAssignedDelete    = json_decode(base64_decode($req->input('companies_assigned_delete')));
-        $companiesAssignedDeleteIds = array_column($companiesAssignedDelete, 'comp_id');
+        $user = mUser::find($req->user_id);
 
-        $userData = [
-            'user_fullname'         => trim($req->input('user_fullname')),
-            'user_email'            => trim($req->input('user_email')),
-            'username'              => $username,
-            'grade_from_id'         => $req->input('grade_from_id'),
-            'grade_to_id'           => $req->input('grade_to_id'),
-            'loc_id'                => $req->input('loc_id'),
-            'user_active_date'      => $req->input('user_active_date'),
-            'user_inactive_date'    => $req->input('user_inactive_date') != 'null' ? $req->input('user_inactive_date') : null,
-            'user_status'           => $req->input('user_status'),
-            'updated_by'            => $updatedBy,
-        ];
+        $user->user_full_name       = trim($req->user_full_name);
+        $user->email                = trim($req->email);
+        $user->username             = trim($req->username);
+        $user->user_active_date     = $req->user_active_date;
+        $user->user_inactive_date   = $req->user_inactive_date != 'null' ? $req->user_inactive_date : null;
+        $user->user_status          = $req->user_status;
+        $user->updated_by           = $req->updated_by;
 
-        if (!empty($req->input('user_is_ho')) && $this->_compCodeSelect != env('DB_DATABASE')) {
-            $updateUser = $user->whereIn('user_id', array_column($usersAssigned, 'user_id'))->update($userData);
+        if (!empty($password)) {
+            $user->password = Hash::make($password);
+        }
 
-            $delUsers = [
-                'users.deleted_at'  => Carbon::now()->toDateTimeString(),
-                'users.deleted_by'  => $updatedBy
-            ];
+        $user->save();
 
-            $user->where('username', $username)
-                ->whereIn('comp_id', $companiesAssignedDeleteIds)
-                ->update($delUsers);
+        if ($req->old_role_id != $req->role_id) {
+            $user       = mUser::find($req->user_id);
 
-            foreach ($usersAssigned as $key => $value) {
-                $compCode = $value->comp_code;
+            $newRole    = Role::find($req->role_id);
+            $oldRole    = Role::find($req->old_role_id);
 
-                if ($compCode != 'axiasolusi') {
-                    $config     = App::make('config');
-                    $connection = $config->get('database.connections')['mysql'];
-                    $userId     = $value->user_id;
-
-                    $connection['database'] = $compCode;
-
-                    $config->set('database.connections.' . $compCode, $connection);
-
-                    $user2 = new mUser;
-                    $user2->setConnection($compCode);
-                    $updateUser = $user2->where('user_id', $userId)->update($userData);
-
-                    if ($req->input('old_role_id') != $req->input('role_id')) {
-                        $rowUser2 = $user2->find($userId);
-
-                        $role = new Role;
-                        $role->setConnection($compCode);
-
-                        $oldRoleData = $role->where('id', $req->input('old_role_id'))->first();
-                        $newRoleData = $role->where('id', $req->input('role_id'))->first();
-
-                        $rowUser2->detachRole($oldRoleData);
-                        $rowUser2->attachRole($newRoleData);
-                    }
-
-                    if (in_array($value->comp_id, $companiesAssignedDeleteIds)) {
-                        $user2->where('user_id', $userId)->update($delUsers);
-                    }
-                }
-            }
-
-            if (!empty($companiesAssignedAdd)) {
-                $roleData       = Role::find(3);
-                $userPassword   = $user->where('username', $username)->first()->makeVisible('password')->password;
-
-                $userData['created_by']                 = $updatedBy;
-                $userData['password']                   = $userPassword;
-                $userData['user_type']                  = 3;
-                $userData['user_need_change_password']  = 2;
-
-                foreach ($companiesAssignedAdd as $key => $value) {
-                    $userData['comp_id'] = $value->comp_id;
-
-                    $rowUserData    = $user->create($userData);
-                    $compCode       = $value->comp_code;
-
-                    $rowUserData->attachRole($roleData);
-
-                    if ($compCode != 'axiasolusi') {
-                        $config     = App::make('config');
-                        $connection = $config->get('database.connections')['mysql'];
-
-                        $connection['database'] = $compCode;
-
-                        $config->set('database.connections.' . $compCode, $connection);
-
-                        $user2 = new mUser;
-                        $user2->setConnection($compCode);
-                        $user2->insert(array_merge($userData, ['user_id' => $rowUserData->user_id]));
-
-                        $rowUserData2 = $user2->find($rowUserData->user_id);
-
-                        $rowUserData2->attachRole($roleData);
-                    }
-                }
-            }
-        } else {
-            $userData['comp_id'] = $req->input('comp_id');
-
-            $updateUser = $user->where('user_id', $req->input('user_id'))->update($userData);
-
-            if ($req->input('old_role_id') != $req->input('role_id')) {
-                $rowUser = $user->find($req->input('user_id'));
-
-                $role = new Role;
-                $role->setConnection($this->_compCode);
-
-                $oldRoleData = $role->where('id', $req->input('old_role_id'))->first();
-                $newRoleData = $role->where('id', $req->input('role_id'))->first();
-
-                $rowUser->detachRole($oldRoleData);
-                $rowUser->attachRole($newRoleData);
-            }
+            $user->detachRole($oldRole);
+            $user->attachRole($newRole);
         }
 
         return response()->json([
-            'data'      => $updateUser,
-            'status'    => 'success',
+            'data'      => $user,
+            'status'    => true,
             'message'   => 'Record has been successfully modified.'
         ], 200);
     }
 
     public function destroy(Request $req)
     {
-        $user = new mUser;
-        $user->setConnection($this->_compCode);
+        $row = mUser::find($req->user_id);
 
-        $deletedBy = $req->input('deleted_by');
+        // $row->detachRole(Role::find($row->role_id));
 
-        if (empty($req->input('user_is_ho'))) {
-            $row = $user->find($req->input('user_id'));
+        $row->deleted_by = $req->deleted_by;
 
-            $row->deleted_by = $deletedBy;
-
-            $row->save();
-            $row->delete();
-        } else {
-            $username       = $req->input('username');
-            $usersAssigned  = json_decode(base64_decode($req->input('users_assigned')));
-
-            $delUsers = [
-                'users.deleted_at'  => Carbon::now()->toDateTimeString(),
-                'users.deleted_by'  => $deletedBy
-            ];
-
-            $row = $user->where('username', $username)->update($delUsers);
-
-            foreach ($usersAssigned as $key => $value) {
-                $compCode   = $value->comp_code;
-                $userId     = $value->user_id;
-
-                if ($compCode != 'axiasolusi') {
-                    $config     = App::make('config');
-                    $connection = $config->get('database.connections')['mysql'];
-
-                    $connection['database'] = $compCode;
-
-                    $config->set('database.connections.' . $compCode, $connection);
-
-                    $user2 = new mUser;
-                    $user2->setConnection($compCode);
-                    $user2->where('user_id', $userId)->update($delUsers);
-                }
-            }
-        }
+        $row->save();
+        $row->delete();
 
         return response()->json([
             'data'      => $row,
-            'status'    => 'success',
-            'message'   => 'Record has been successfully deleted'
+            'status'    => true,
+            'message'   => 'Record has been successfully deleted.'
         ], 200);
     }
 
     public function resetPassword(Request $req)
     {
-        $user = new mUser;
-        $user->setConnection($this->_compCode);
-
         $ramdom         = Str::random(8);
-        $newPassword    = trim($req->input('password'));
-        $hashPassword   = Hash::make($newPassword);
+        $hashPassword   = Hash::make($ramdom);
 
-        if (empty($req->input('user_is_ho'))) {
-            $row    = $user->find($req->input('user_id'));
+        $row    = mUser::find($req->user_id);
 
-            $username       = $row->username;
-            $userFullname   = $row->user_fullname;
-            $userEmail      = $row->user_email;
+        $row->password = $hashPassword;
+        $row->save();
 
-            $row->password = $hashPassword;
-            $row->save();
-        } else {
-            $username       = $req->input('username');
-            $userEmail      = $req->input('user_email');
-            $userFullname   = $req->input('user_fullname');
-            $usersAssigned  = json_decode(base64_decode($req->input('users_assigned')));
-
-            $row            = $user->where('username', $username)->update(['password' => $hashPassword]);
-
-            foreach ($usersAssigned as $key => $value) {
-                $compCode   = $value->comp_code;
-                $userId     = $value->user_id;
-
-                if ($compCode != 'axiasolusi') {
-                    $config     = App::make('config');
-                    $connection = $config->get('database.connections')['mysql'];
-
-                    $connection['database'] = $compCode;
-
-                    $config->set('database.connections.' . $compCode, $connection);
-
-                    $user2 = new mUser;
-                    $user2->setConnection($compCode);
-                    $user2->where('user_id', $userId)->update(['password' => $hashPassword]);
-                }
-            }
-        }
-
-        //send notification email
-        Mail::to($userEmail)->send(new UserResetPassword([
-            'fullname'  => $userFullname,
-            'username'  => $username,
-            'password'  => $newPassword
-        ]));
-        //end
+        // Send New Password on Email
 
         return response()->json([
             'data'      => $row,
-            'status'    => 'success',
+            'status'    => true,
             'message'   => 'Record has been successfully modified.'
         ], 200);
     }
 
     public function getAccessRights(Request $req)
     {
-        $user = new mUser;
-        $user->setConnection($this->_compCode);
-
-        $get    = $user->find($req->input('user_id'));
+        $get    = mUser::find($req->user_id);
         $role   = $get->roles[0];
 
-        $accessModule = new Access_module;
-        $accessModule->setConnection($this->_compCode);
-
-        $getAM      = $accessModule->where('role_id', $role->id)->get();
+        $getAM  = Access_module::where('role_id', $role->id)->get();
 
         if (empty($role->permissions)) {
             $role->permissions = [];
-        }
-
-        $userRow    = $get->first();
-        $gradeIds   = [];
-
-        if ($userRow->grade_from_id != null && $userRow->grade_to_id != null) {
-            $gradeFromLevel = $get->gradeFrom->grade_level;
-            $gradeToLevel   = $get->gradeTo->grade_level;
-
-            $grade = new Grade;
-            $grade->setConnection($this->_compCode);
-
-            $gradeIds = $grade->whereBetween('grade_level', [$gradeFromLevel, $gradeToLevel])
-                ->pluck('grade_id')
-                ->toArray();
         }
 
         return response()->json([
@@ -492,12 +220,10 @@ class User extends Controller
                 'access_module' => $getAM,
                 'role'          => $role,
                 'user'          => [
-                    'user_id'   => $userRow->user_id,
-                    'loc_id'    => $userRow->loc_id,
-                    'grade_ids' => $gradeIds,
+                    'user_id'   => $get->user_id,
                 ],
             ],
-            'status'    => 'success'
+            'status'    => true
         ], 200);
     }
 }

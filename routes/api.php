@@ -2,6 +2,12 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\Auth;
+use App\Http\Controllers\Api\UserManagement\User;
+use App\Http\Controllers\Api\UserManagement\Role;
+use App\Http\Controllers\Api\TaskManagement\Task;
+use App\Http\Controllers\Api\ModuleManagement\Module;
+use App\Http\Controllers\Api\ModuleManagement\SubModule;
 
 /*
 |--------------------------------------------------------------------------
@@ -20,25 +26,46 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
 
-    Route::post('/sign-in', 'Api\Auth@signIn');
+    Route::post('/sign-in', [Auth::class, 'signIn']);
+    Route::post('/verify-token', [Auth::class, 'verifyToken']);
 });
 
 Route::middleware(['auth:sanctum'])->group(function () {
+
+    Route::prefix('auth')->group(function () {
+
+        Route::post('/sign-out', [Auth::class, 'signOut']);
+        Route::post('/sign-out-all', [Auth::class, 'signOutAll']);
+    });
 
     Route::prefix('user-management')->group(function () {
 
         Route::prefix('user')->group(function () {
 
-            Route::get('/index', 'Api\UserManagement\User@index');
-            Route::get('/unique', 'Api\UserManagement\User@unique');
-            Route::get('/get-access-rights', 'Api\UserManagement\User@getAccessRights');
+            Route::get('/index', [User::class, 'index']);
+            Route::get('/unique', [User::class, 'unique']);
+            Route::get('/get-access-rights', [User::class, 'getAccessRights']);
 
-            Route::post('/store', 'Api\UserManagement\User@store');
+            Route::post('/store', [User::class, 'store']);
 
-            Route::put('/save', 'Api\UserManagement\User@save');
-            Route::put('/reset-password', 'Api\UserManagement\User@resetPassword');
+            Route::put('/save', [User::class, 'save']);
+            Route::put('/reset-password', [User::class, 'resetPassword']);
 
-            Route::delete('/destroy', 'Api\UserManagement\User@destroy');
+            Route::delete('/destroy', [User::class, 'destroy']);
+        });
+
+        Route::prefix('role')->group(function () {
+
+            Route::get('/index', [Role::class, 'index']);
+            Route::get('/unique', [Role::class, 'unique']);
+            Route::get('/get-role', [Role::class, 'getRole']);
+            Route::get('/get-permission', [Role::class, 'getPermission']);
+
+            Route::post('/store', [Role::class, 'store']);
+
+            Route::put('/save', [Role::class, 'save']);
+
+            Route::delete('/destroy', [Role::class, 'destroy']);
         });
     });
 
@@ -46,55 +73,41 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         Route::prefix('task')->group(function () {
 
-            Route::get('/index', 'Api\TaskManagement\Task@index');
-            Route::get('/unique', 'Api\TaskManagement\Task@unique');
+            Route::get('/index', [Task::class, 'index']);
+            Route::get('/unique', [Task::class, 'unique']);
 
-            Route::post('/store', 'Api\TaskManagement\Task@store');
+            Route::post('/store', [Task::class, 'store']);
 
-            Route::put('/save', 'Api\TaskManagement\Task@save');
+            Route::put('/save', [Task::class, 'save']);
 
-            Route::delete('/destroy', 'Api\TaskManagement\Task@destroy');
+            Route::delete('/destroy', [Task::class, 'destroy']);
         });
-    });
-
-    Route::prefix('role')->group(function () {
-
-        Route::get('/index', 'Api\Role@index');
-        Route::get('/unique', 'Api\Role@unique');
-        Route::get('/get-role', 'Api\Role@getRole');
-        Route::get('/get-permission', 'Api\Role@getPermission');
-
-        Route::post('/store', 'Api\Role@store');
-
-        Route::put('/save', 'Api\Role@save');
-
-        Route::delete('/destroy', 'Api\Role@destroy');
     });
 
     Route::prefix('module-management')->group(function () {
 
         Route::prefix('module')->group(function () {
 
-            Route::get('/index', 'Api\ModuleManagement\Module@index');
-            Route::get('/unique', 'Api\ModuleManagement\Module@unique');
+            Route::get('/index', [Module::class, 'index']);
+            Route::get('/unique', [Module::class, 'unique']);
 
-            Route::post('/store', 'Api\ModuleManagement\Module@store');
+            Route::post('/store', [Module::class, 'store']);
 
-            Route::put('/save', 'Api\ModuleManagement\Module@save');
+            Route::put('/save', [Module::class, 'save']);
 
-            Route::delete('/destroy', 'Api\ModuleManagement\Module@destroy');
+            Route::delete('/destroy', [Module::class, 'destroy']);
         });
 
         Route::prefix('sub-module')->group(function () {
 
-            Route::get('/index', 'Api\ModuleManagement\SubModule@index');
-            Route::get('/unique', 'Api\ModuleManagement\SubModule@unique');
+            Route::get('/index', [SubModule::class, 'index']);
+            Route::get('/unique', [SubModule::class, 'unique']);
 
-            Route::post('/store', 'Api\ModuleManagement\SubModule@store');
+            Route::post('/store', [SubModule::class, 'store']);
 
-            Route::put('/save', 'Api\ModuleManagement\SubModule@save');
+            Route::put('/save', [SubModule::class, 'save']);
 
-            Route::delete('/destroy', 'Api\ModuleManagement\SubModule@destroy');
+            Route::delete('/destroy', [SubModule::class, 'destroy']);
         });
     });
 });

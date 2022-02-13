@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class RoleTableSeeder extends Seeder
 {
@@ -13,28 +14,18 @@ class RoleTableSeeder extends Seeder
      */
     public function run()
     {
-        \DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-        \DB::table('roles')->truncate();
-        \DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        DB::table('roles')->truncate();
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
-        \DB::table('roles')->insert([
+        DB::table('roles')->insert([
             [
                 'id'            => 1,
-                'name'          => 'axia-admin',
-                'display_name'  => 'Axia Admin',
+                'name'          => 'admin',
+                'display_name'  => 'Admin',
             ],
             [
                 'id'            => 2,
-                'name'          => 'super-admin',
-                'display_name'  => 'Super Admin',
-            ],
-            [
-                'id'            => 3,
-                'name'          => 'super-user',
-                'display_name'  => 'Super User',
-            ],
-            [
-                'id'            => 4,
                 'name'          => 'user',
                 'display_name'  => 'User',
             ],

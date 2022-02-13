@@ -19,11 +19,11 @@ class Module extends Model
 
     public function subModule()
     {
-        return $this->hasMany('App\Models\Sub_module', 'mod_id');
+        return $this->hasMany(Sub_module::class, 'mod_id');
     }
 
     public function accessModule()
     {
-        return $this->hasMany('App\Models\Access_module', 'mod_id');
+        return $this->hasMany(Access_module::class, 'mod_id');
     }
 }

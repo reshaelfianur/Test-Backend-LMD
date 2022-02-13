@@ -10,6 +10,6 @@ class Role extends LaratrustRole
 
     public function accessModule()
     {
-        return $this->hasMany('App\Models\Access_module', 'role_id');
+        return $this->hasMany(Access_module::class, 'role_id');
     }
 }
