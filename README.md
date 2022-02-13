@@ -12,3 +12,12 @@
 6. Terakhir ketikan php artisan serve pada terminal didalam project.
     - Default post adalah 8000
 7. Selesai
+
+## Notes
+- login admin role
+username = admin
+password = admin1234
+
+- login user role
+username = user
+password = user1234
